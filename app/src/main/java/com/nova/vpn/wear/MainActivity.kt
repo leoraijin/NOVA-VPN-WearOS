@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +96,11 @@ private fun WearVpnRemote() {
     val watchStatusUri = remember { Uri.parse("wear://*$WATCH_STATUS_PATH") }
     var pendingLocalConnect by remember { mutableStateOf(false) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
+    val profileRevision by WatchRuntime.profileRevision.collectAsStateWithLifecycle()
+    LaunchedEffect(profileRevision) {
+        hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false)
+        if (hasLocalProfile) watchMessage = null
+    }
     fun launchLocalVpn(config: String) {
             WatchRuntime.reportFailure(null)
             val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
@@ -182,7 +188,7 @@ private fun WearVpnRemote() {
                 if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == WATCH_STATUS_PATH) {
                     runCatching { DataMapItem.fromDataItem(event.dataItem).dataMap.getString(STATE_KEY) }
                         .getOrNull()?.let { state ->
-                            if (state == "profile_ready") hasLocalProfile = true
+                            if (state == "profile_ready") { hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false); if (hasLocalProfile) watchMessage = null }
                             if (state == "watch_connected" || state == "watch_disconnected") watchMessage = null
                         }
                 }
@@ -196,7 +202,7 @@ private fun WearVpnRemote() {
             dataClient.getDataItems(watchStatusUri, DataClient.FILTER_PREFIX).addOnSuccessListener { items ->
                 try { if (listening) items.forEach { item ->
                     runCatching { DataMapItem.fromDataItem(item).dataMap.getString(STATE_KEY) }.getOrNull()?.let { state ->
-                        if (state == "profile_ready") hasLocalProfile = true
+                        if (state == "profile_ready") { hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false); if (hasLocalProfile) watchMessage = null }
                     }
                 } } finally { items.release() }
             }

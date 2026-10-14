@@ -1,5 +1,12 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.4 — 2026-10-14 (experimental debug)
+
+- Advertise the profile receiver capability so Android 0.2.21 discovers the NOVA app rather than blindly sending to every connected node.
+- Acknowledge the exact transfer only after encrypted storage and read-back succeed. Reject malformed/oversized profiles; preserve legacy raw messages from older phone versions.
+- Use atomic encrypted storage with a process-wide lock. Notify the visible watch UI immediately and clear the stale missing-profile message after receipt; the watch does not auto-connect.
+- Pair with Android 0.2.21 and tap Servers → Transfer to watch. No hardware transfer or watch VPN crash fix is claimed; install ARMv7 on the owner's watch.
+
 ## 0.3.3 — 2026-10-14 (diagnostic / experimental)
 
 - The VPN core now runs in an app-private `:vpn` process instead of the activity process. This contains native-core failures; it is not a confirmed fix for the reported device VPN failure.

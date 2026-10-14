@@ -1,0 +1,5 @@
+<resources>
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>nova_vpn_watch_profile_v2</item>
+    </string-array>
+</resources>

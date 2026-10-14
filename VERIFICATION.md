@@ -1,4 +1,12 @@
-# Verification — 0.3.3 diagnostic (2026-10-14)
+# Verification — 0.3.4 experimental (2026-10-14)
+
+Offline debug build and 28 unit tests passed. Profile protocol tests cover exact UTF-8/escaped JSON round-trip, invalid/oversized profiles, request-matched acknowledgements and unknown/stale replies. Packaged ARMv7 resources include the advertised profile capability. The phone and ARMv7 watch APKs have the same package ID and signing certificate as their previous builds.
+
+The receiver saves atomically, reads the encrypted profile back before acknowledging, and notifies the local visible UI. The phone waits at most 25 seconds and requires acknowledgement from the selected node. Invalid messages are rejected and legacy raw phone messages remain accepted. No profile is transferred automatically and no VPN starts on transfer.
+
+No physical devices are connected to ADB. Real Data Layer discovery/delivery, process lifecycle, Bluetooth interruptions, Keystore failures and the reported watch VPN crash require hardware verification. These tests establish the wire format and packaged prerequisites, not real paired-device delivery or working watch VPN.
+
+## Previous verification — 0.3.3 diagnostic
 
 The reported device crash cannot be diagnosed from a screenshot or a successful build. `adb devices -l` returned no connected devices. No physical Watch Ultra test, native crash reproduction, or VPN traffic test was performed for this version.
 
