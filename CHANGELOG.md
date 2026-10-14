@@ -1,5 +1,12 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.3 — 2026-10-14 (diagnostic / experimental)
+
+- The VPN core now runs in an app-private `:vpn` process instead of the activity process. This contains native-core failures; it is not a confirmed fix for the reported device VPN failure.
+- Local state uses private Messenger IPC while the screen is visible, without phone dependency or periodic polling. Lost service connection reports failure instead of leaving the screen silently waiting.
+- Failure feedback includes only a fixed startup phase, app version, ABI and recent system exit category. No configs, keys, endpoints, exception texts or native tombstones are stored or exported.
+- The affected physical Watch Ultra is not connected to ADB; exact native/Java/system cause is still unconfirmed. Use the ARMv7 diagnostic APK and report the phase/reason shown if it fails.
+
 ## 0.3.2 — 2026-10-14
 
 - Check the local profile before asking for VPN consent; missing/corrupt profile and unsupported permission activity are reported in the UI instead of throwing from the button handler.

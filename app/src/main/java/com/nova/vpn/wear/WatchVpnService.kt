@@ -15,6 +15,12 @@ import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.os.Messenger
+import android.os.IBinder
+import android.os.Bundle
 import android.util.Log
 import io.nekohasekai.libbox.BridgeOptions
 import io.nekohasekai.libbox.BridgeSession
@@ -53,6 +59,30 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private var server: CommandServer? = null
     private var tun: ParcelFileDescriptor? = null
     @Volatile private var startIdLatest = 0
+    private val uiClients = java.util.concurrent.CopyOnWriteArrayList<Messenger>()
+    private val statusBinder = Messenger(Handler(Looper.getMainLooper()) { message ->
+        if (message.what == WatchServiceConnection.REGISTER && message.replyTo != null) {
+            uiClients.addIfAbsent(message.replyTo)
+            sendUiStatus(WatchRuntime.state.value)
+        }
+        true
+    })
+    override fun onCreate() {
+        super.onCreate()
+        WatchRuntime.relay = ::sendUiStatus
+    }
+    override fun onBind(intent: Intent?): IBinder? =
+        if (intent?.action == WatchServiceConnection.ACTION) statusBinder.binder else super.onBind(intent)
+    override fun onUnbind(intent: Intent?): Boolean {
+        if (intent?.action == WatchServiceConnection.ACTION) uiClients.clear()
+        return super.onUnbind(intent)
+    }
+    private fun sendUiStatus(state: String) {
+        uiClients.forEach { client ->
+            runCatching { client.send(Message.obtain(null, WatchServiceConnection.STATE).apply { data = Bundle().apply { putString("state", state); putString("failure", WatchRuntime.failure.value) } }) }
+                .onFailure { uiClients.remove(client) }
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startIdLatest = startId
@@ -61,21 +91,28 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         val config = intent?.getStringExtra(EXTRA_CONFIG)
         if (config.isNullOrBlank()) { WatchStatusSync.publish(this, "watch_error"); stopSelfResult(startId); return START_NOT_STICKY }
         WatchStatusSync.publish(this, "watch_connecting")
+        WatchRuntime.reportFailure(null)
+        WatchStartupDiagnostics.mark(this, "foreground")
         try { enterForeground(notification("Подключение…")) }
         catch (error: Exception) { Log.e(TAG, "Could not enter foreground", error); WatchStatusSync.publish(this, "watch_error"); stopSelfResult(startId); return START_NOT_STICKY }
         queue.execute {
             if (startId != startIdLatest) return@execute
             try {
                 check(VpnService.prepare(this) == null) { "Сначала разрешите VPN на часах" }
+                WatchStartupDiagnostics.mark(this, "core-setup")
                 setupLibbox()
+                WatchStartupDiagnostics.mark(this, "config-adapt")
                 val adapted = WatchConfigAdapter.adapt(config, packageName)
                 val probe = AndroidTrafficProbe.prepare(adapted)
                 val runtimeConfig = probe?.config ?: adapted
+                WatchStartupDiagnostics.mark(this, "config-check")
                 Libbox.checkConfig(runtimeConfig)
+                WatchStartupDiagnostics.mark(this, "core-start")
                 (server ?: CommandServer(this, this).also { it.start(); server = it })
                     .startOrReloadService(runtimeConfig, OverrideOptions())
                 if (startId != startIdLatest) return@execute
                 trafficProbe = probe
+                WatchStartupDiagnostics.mark(this, "running")
                 WatchStatusSync.publish(this, "watch_connected")
                 updateNotification("Туннель включён · проверка трафика")
                 if (probe == null) {
@@ -94,6 +131,8 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 }
             } catch (error: Throwable) {
                 Log.e(TAG, "Watch VPN start failed: ${error.javaClass.simpleName}")
+                WatchRuntime.reportFailure(WatchStartupDiagnostics.startupError(this, error))
+                WatchStartupDiagnostics.mark(this, "startup-error")
                 closeEngine()
                 if (startId != startIdLatest) return@execute
                 WatchStatusSync.publish(this, "watch_error")
@@ -106,6 +145,8 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
     override fun onRevoke() { stopTunnel(startIdLatest); super.onRevoke() }
     override fun onDestroy() {
+        WatchRuntime.relay = null
+        uiClients.clear()
         startIdLatest = -1
         trafficProbe?.cancel()
         probeQueue.shutdownNow()
@@ -115,9 +156,13 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         super.onDestroy()
     }
 
-    private fun stopTunnel(id: Int) = queue.execute {
-        closeEngine(); WatchStatusSync.publish(this, "watch_disconnected"); stopForeground(STOP_FOREGROUND_REMOVE)
-        if (id > 0) stopSelfResult(id) else stopSelf()
+    private fun stopTunnel(id: Int) {
+        if (queue.isShutdown) return
+        runCatching { queue.execute {
+            WatchStartupDiagnostics.mark(this, "stopped")
+            closeEngine(); WatchStatusSync.publish(this, "watch_disconnected"); stopForeground(STOP_FOREGROUND_REMOVE)
+            if (id > 0) stopSelfResult(id) else stopSelf()
+        } }
     }
     private fun closeEngine() {
         trafficProbe?.cancel(); trafficProbe = null
@@ -163,6 +208,7 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
     override fun useProcFS() = false
     override fun openTun(options: TunOptions): Int {
+        WatchStartupDiagnostics.mark(this, "tun-open")
         check(VpnService.prepare(this) == null) { "Android VPN permission is missing" }
         val builder = Builder().setSession("NOVA VPN · Часы").setMtu(1500)
         builder.addDisallowedApplication(packageName)

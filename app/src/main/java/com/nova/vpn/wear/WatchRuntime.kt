@@ -7,6 +7,10 @@ import kotlinx.coroutines.flow.asStateFlow
 internal object WatchRuntime {
     private val mutableState = MutableStateFlow("watch_disconnected")
     val state = mutableState.asStateFlow()
-    fun update(value: String) { mutableState.value = value }
+    private val mutableFailure = MutableStateFlow<String?>(null)
+    val failure = mutableFailure.asStateFlow()
+    @Volatile var relay: ((String) -> Unit)? = null
+    fun update(value: String) { mutableState.value = value; relay?.invoke(value) }
+    fun reportFailure(value: String?) { mutableFailure.value = value }
     fun isActive(value: String) = value in setOf("watch_connecting", "watch_connected", "watch_verified", "watch_unconfirmed")
 }

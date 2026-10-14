@@ -34,6 +34,7 @@
         </service>
         <service
             android:name=".WatchVpnService"
+            android:process=":vpn"
             android:exported="false"
             android:foregroundServiceType="systemExempted"
             tools:ignore="ForegroundServicePermission"

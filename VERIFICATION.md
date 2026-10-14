@@ -1,4 +1,12 @@
-# Verification — 0.3.2 (2026-10-14)
+# Verification — 0.3.3 diagnostic (2026-10-14)
+
+The reported device crash cannot be diagnosed from a screenshot or a successful build. `adb devices -l` returned no connected devices. No physical Watch Ultra test, native crash reproduction, or VPN traffic test was performed for this version.
+
+Implemented private-process service isolation and event-driven IPC; a fixed startup phase and recent exit category are displayed on service disconnection. System traces, native tombstones and exception messages are deliberately not exported because they may contain secrets. Source/build/manifest/unit checks do not prove that the user's VPN works. This release is diagnostic, not a certified stable VPN fix.
+
+Offline debug build and 23 unit tests passed. New tests cover local state relay, preserved failure feedback and the non-exported private-process manifest contract. Actual Binder death, system VPN permission UI and ARMv7 native execution still require device testing.
+
+## Previous verification — 0.3.2
 
 - Offline debug build succeeded; 20 unit tests passed. New tests exercise missing/corrupt profiles, unsupported consent UI, security/start/stop exceptions and unchanged valid profile delivery.
 - Command reply tests cover request/node matching, stale responses, invalid JSON, oversized payloads and unknown states. UI command timeout is bounded to 12 seconds and has no polling.

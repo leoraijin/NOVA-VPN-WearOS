@@ -2,7 +2,9 @@
 
 This is a standalone Wear OS VPN client paired with the separate NOVA Android phone client. The phone and watch can run independent VPN tunnels. A profile can optionally be copied from the phone; nothing is transferred until the user taps the send icon next to a server on the phone.
 
-Current client version: **0.3.2** (experimental debug builds).
+Current diagnostic version: **0.3.3** (experimental debug builds). The reported watch VPN crash is **not confirmed fixed**.
+
+The native VPN service runs in its own private process, with Messenger IPC for local status. If the process exits while the screen is bound, the screen reports a fixed phase and recent Android exit category. This protects against a shared-process core crash, but does not prove native VPN compatibility on the affected watch. ARMv7 is the required variant for the owner's device where ARM64 does not run. No hardware watch is currently connected; please report the phase/reason shown if connection fails.
 
 ## Connect buttons
 

@@ -81,14 +81,26 @@ private fun WearVpnRemote() {
     var pendingCommandId by remember { mutableStateOf<String?>(null) }
     var commandNode by remember { mutableStateOf<String?>(null) }
     val watchState by WatchRuntime.state.collectAsStateWithLifecycle()
+    val startupFailure by WatchRuntime.failure.collectAsStateWithLifecycle()
+    val vpnServiceConnection = remember(context) { WatchServiceConnection(context) }
+    DisposableEffect(vpnServiceConnection, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) { Lifecycle.Event.ON_START -> vpnServiceConnection.bind(); Lifecycle.Event.ON_STOP -> vpnServiceConnection.unbind(); else -> Unit }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) vpnServiceConnection.bind()
+        onDispose { vpnServiceConnection.unbind(); lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var hasLocalProfile by remember { mutableStateOf(runCatching { WearProfileVault(context).load() != null }.getOrDefault(false)) }
     val watchStatusUri = remember { Uri.parse("wear://*$WATCH_STATUS_PATH") }
     var pendingLocalConnect by remember { mutableStateOf(false) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
     fun launchLocalVpn(config: String) {
+            WatchRuntime.reportFailure(null)
             val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
                 .putExtra(WatchVpnService.EXTRA_CONFIG, config)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+            vpnServiceConnection.bind()
     }
     fun startLocalVpn() {
         watchMessage = WatchConnectAction.perform(false, { WearProfileVault(context).load() }, {}, ::launchLocalVpn)
@@ -297,9 +309,11 @@ private fun WearVpnRemote() {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text("NOVA VPN", fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text("v${BuildConfig.VERSION_NAME} · ${if (android.os.Process.is64Bit()) "64" else "32"} бит", fontSize = 10.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(10.dp))
                     Text("Часы · $localStatusLabel", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
                     watchMessage?.let { Text(it, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    startupFailure?.let { Text(it, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = ::toggleLocalVpn,
