@@ -1,5 +1,15 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.7 — 2026-10-14 (experimental debug)
+
+- Separate failures in profile loading, system VPN permission, permission UI, service start and stop. A NullPointerException in the system permission request no longer produces the ambiguous generic action message or suggests the saved profile is missing.
+- System permission failure prevents tunnel startup. Do not bypass consent, start an unprotected proxy or silently switch the phone's VPN; the phone button only controls the phone.
+- Set pending permission state before opening the system UI and clear it on launch failure, so retry is not locked out. Reject a null service-start result; preserve coroutine cancellation.
+- Add square density-specific PNG installer icons and a matching safe-zone adaptive round launcher icon. The tile keeps its existing NOVA shield/preview. OEM installer-owned artwork cannot be overridden by this APK.
+- Add a fixed permission-check startup phase before native-core setup. No exception messages, configs, keys or stack traces are persisted or published.
+- Build/unit/APK checks do not establish physical Watch Ultra support. The screenshot confirms profile storage but does not locate the NullPointerException. A system VPN API failure remains a device/firmware compatibility hypothesis pending device diagnostics.
+- Updates: Releases in this Wear OS repository; owner uses ARMv7 / 32-bit.
+
 ## 0.3.6 — 2026-10-14 (experimental debug)
 
 - Opening watch controls no longer auto-creates an idle VPN process. Explicit Connect still starts and binds the local service; reopening controls binds an already running service.

@@ -106,7 +106,10 @@ private fun WearVpnRemote() {
             WatchRuntime.reportFailure(null)
             val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
                 .putExtra(WatchVpnService.EXTRA_CONFIG, config)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+            WatchConnectAction.at(WatchActionStage.START) {
+                val started = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+                checkNotNull(started) { "VPN service was not started" }
+            }
             vpnServiceConnection.bind(create = true)
     }
     fun startLocalVpn() {
@@ -114,7 +117,7 @@ private fun WearVpnRemote() {
         localActionBusy = true
         scope.launch {
             try {
-                val config = withContext(Dispatchers.IO) { runCatching { WearProfileVault(context).load() } }
+                val config = withContext(Dispatchers.IO) { runCatching { WatchConnectAction.at(WatchActionStage.PROFILE) { WearProfileVault(context).load() } } }
                 watchMessage = WatchConnectAction.perform(false, { config.getOrThrow() }, {}, ::launchLocalVpn)
             } finally { localActionBusy = false }
         }
@@ -130,15 +133,16 @@ private fun WearVpnRemote() {
         scope.launch {
           try {
             val active = WatchRuntime.isActive(WatchRuntime.state.value)
-            val config = if (active) Result.success<String?>(null) else withContext(Dispatchers.IO) { runCatching { WearProfileVault(context).load() } }
+            val config = if (active) Result.success<String?>(null) else withContext(Dispatchers.IO) { runCatching { WatchConnectAction.at(WatchActionStage.PROFILE) { WearProfileVault(context).load() } } }
             watchMessage = WatchConnectAction.perform(active,
             { config.getOrThrow().also { hasLocalProfile = !it.isNullOrBlank() } },
-            { context.startService(Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_STOP)) },
+            { WatchConnectAction.at(WatchActionStage.STOP) { context.startService(Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_STOP)); Unit } },
             { config ->
-                val consent = VpnService.prepare(context)
+                val consent = WatchConnectAction.at(WatchActionStage.PERMISSION) { VpnService.prepare(context) }
                 if (consent == null) launchLocalVpn(config) else {
-                    vpnConsent.launch(consent)
                     pendingLocalConnect = true
+                    try { WatchConnectAction.at(WatchActionStage.PERMISSION_UI) { vpnConsent.launch(consent) } }
+                    catch (error: Exception) { pendingLocalConnect = false; throw error }
                 }
             })
           } finally { localActionBusy = false }
@@ -320,7 +324,7 @@ private fun WearVpnRemote() {
                     val explanation = when (connectionState) {
                         "permission_required" -> "Откройте NOVA на телефоне, нажмите «Подключить» и подтвердите запрос VPN. Затем повторите здесь."
                         "profile_required" -> "Сначала импортируйте VPN-профиль в приложении на телефоне."
-                        else -> commandState ?: watchMessage
+                        else -> commandState
                     }
                     if (!explanation.isNullOrBlank()) {
                         Spacer(Modifier.height(8.dp))

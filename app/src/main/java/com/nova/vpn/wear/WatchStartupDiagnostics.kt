@@ -9,7 +9,7 @@ import java.io.File
 
 /** Fixed phase names only. Never store exception text, VPN config, hostnames or native traces. */
 internal object WatchStartupDiagnostics {
-    private val phases = setOf("service-created", "foreground", "core-setup", "config-adapt", "config-check", "core-start", "tun-open", "running", "startup-error", "stopped")
+    private val phases = setOf("service-created", "foreground", "permission-check", "core-setup", "config-adapt", "config-check", "core-start", "tun-open", "running", "startup-error", "stopped")
     fun mark(context: Context, phase: String) {
         require(phase in phases)
         val atomic = AtomicFile(File(context.filesDir, "watch-startup-phase.txt"))

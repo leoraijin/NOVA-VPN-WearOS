@@ -100,6 +100,7 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         queue.execute {
             if (startId != startIdLatest) return@execute
             try {
+                WatchStartupDiagnostics.mark(this, "permission-check")
                 check(VpnService.prepare(this) == null) { "Сначала разрешите VPN на часах" }
                 WatchStartupDiagnostics.mark(this, "core-setup")
                 setupLibbox()

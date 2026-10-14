@@ -9,7 +9,8 @@
 
     <application
         android:allowBackup="false"
-        android:icon="@drawable/nova_mark"
+        android:icon="@mipmap/nova_installer"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="NOVA VPN"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
