@@ -24,6 +24,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,12 @@ import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataItem
 import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
+import com.google.android.gms.wearable.MessageClient
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.util.UUID
 
 private const val STATUS_PATH = "/nova/status"
 private const val TOGGLE_PATH = "/nova/toggle"
@@ -69,18 +76,22 @@ private fun WearVpnRemote() {
     var connectionState by remember { mutableStateOf("disconnected") }
     var commandState by remember { mutableStateOf<String?>(null) }
     var sending by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var commandTimeout by remember { mutableStateOf<Job?>(null) }
+    var pendingCommandId by remember { mutableStateOf<String?>(null) }
+    var commandNode by remember { mutableStateOf<String?>(null) }
     val watchState by WatchRuntime.state.collectAsStateWithLifecycle()
     var hasLocalProfile by remember { mutableStateOf(runCatching { WearProfileVault(context).load() != null }.getOrDefault(false)) }
     val watchStatusUri = remember { Uri.parse("wear://*$WATCH_STATUS_PATH") }
     var pendingLocalConnect by remember { mutableStateOf(false) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
+    fun launchLocalVpn(config: String) {
+            val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
+                .putExtra(WatchVpnService.EXTRA_CONFIG, config)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
+    }
     fun startLocalVpn() {
-        val config = runCatching { WearProfileVault(context).load() }.getOrNull()
-        if (config.isNullOrBlank()) { watchMessage = "Сначала передайте профиль с телефона."; return }
-        val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
-            .putExtra(WatchVpnService.EXTRA_CONFIG, config)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
-        watchMessage = null
+        watchMessage = WatchConnectAction.perform(false, { WearProfileVault(context).load() }, {}, ::launchLocalVpn)
     }
     val vpnConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (pendingLocalConnect && result.resultCode == Activity.RESULT_OK) startLocalVpn()
@@ -88,21 +99,22 @@ private fun WearVpnRemote() {
         pendingLocalConnect = false
     }
     fun toggleLocalVpn() {
-        if (WatchRuntime.isActive(watchState)) {
-            context.startService(Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_STOP))
-            return
-        }
-        val consent = VpnService.prepare(context)
-        if (consent == null) startLocalVpn() else { pendingLocalConnect = true; vpnConsent.launch(consent) }
+        watchMessage = WatchConnectAction.perform(WatchRuntime.isActive(watchState),
+            { WearProfileVault(context).load().also { hasLocalProfile = !it.isNullOrBlank() } },
+            { context.startService(Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_STOP)) },
+            { config ->
+                val consent = VpnService.prepare(context)
+                if (consent == null) launchLocalVpn(config) else {
+                    vpnConsent.launch(consent)
+                    pendingLocalConnect = true
+                }
+            })
     }
     val statusUri = remember { Uri.parse("wear://*$STATUS_PATH") }
 
     fun acceptStatus(item: DataItem) {
         val values = runCatching { DataMapItem.fromDataItem(item).dataMap }.getOrNull() ?: return
         connectionState = values.getString(STATE_KEY) ?: "disconnected"
-        if (connectionState != "error" && connectionState != "permission_required" && connectionState != "profile_required") {
-            commandState = null
-        }
     }
 
     DisposableEffect(dataClient, statusUri, lifecycleOwner) {
@@ -186,42 +198,67 @@ private fun WearVpnRemote() {
         onDispose { stopListening(); lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    fun finishCommand(text: String) {
+        commandState = text
+        sending = false
+        pendingCommandId = null
+        commandTimeout?.cancel()
+    }
+
+    DisposableEffect(messageClient, lifecycleOwner) {
+        val listener = MessageClient.OnMessageReceivedListener { event ->
+            if (event.path == "/nova/command-result" && event.sourceNodeId == commandNode) {
+                WatchCommandReply.read(event.data, event.sourceNodeId, commandNode, pendingCommandId)?.let { state ->
+                        connectionState = state
+                        finishCommand(when (state) {
+                            "connecting" -> "Телефон принял команду подключения."
+                            "disconnecting" -> "Телефон принял команду отключения."
+                            "connected" -> "VPN на телефоне включён."
+                            "permission_required" -> "Откройте NOVA на телефоне и разрешите VPN."
+                            "profile_required" -> "Добавьте профиль в NOVA на телефоне."
+                            "foreground_required" -> "Android запретил запуск из фона. Откройте NOVA на телефоне и повторите."
+                            else -> "Телефон не смог выполнить команду. Проверьте NOVA на телефоне."
+                        })
+                }
+            }
+        }
+        var listening = false
+        fun start() { if (!listening) { listening = true; messageClient.addListener(listener).addOnFailureListener { finishCommand("Нет связи с приложением телефона.") } } }
+        fun stop() { if (listening) { listening = false; messageClient.removeListener(listener) } }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) { Lifecycle.Event.ON_START -> start(); Lifecycle.Event.ON_STOP -> stop(); else -> Unit }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
+        onDispose { stop(); commandTimeout?.cancel(); lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     fun sendToggle() {
         if (sending) return
         sending = true
-        commandState = null
-        nodeClient.connectedNodes
-            .addOnSuccessListener { nodes ->
-                if (nodes.isEmpty()) {
-                    commandState = "Телефон недоступен. Проверьте подключение часов."
-                    sending = false
-                    return@addOnSuccessListener
-                }
-                var remaining = nodes.size
-                var delivered = false
-                nodes.forEach { node ->
-                    messageClient.sendMessage(node.id, TOGGLE_PATH, byteArrayOf())
+        val id = UUID.randomUUID().toString()
+        pendingCommandId = id
+        commandState = "Связываюсь с NOVA на телефоне…"
+        commandTimeout?.cancel()
+        commandTimeout = scope.launch {
+            delay(12000)
+            if (pendingCommandId == id) finishCommand("Телефон не ответил. Обновите NOVA на обоих устройствах, откройте её на телефоне и проверьте сопряжение.")
+        }
+        runCatching {
+            nodeClient.connectedNodes.addOnSuccessListener { nodes ->
+                if (pendingCommandId != id) return@addOnSuccessListener
+                val node = nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull()
+                if (node == null) { finishCommand("Телефон недоступен. Проверьте сопряжение часов."); return@addOnSuccessListener }
+                commandNode = node.id
+                runCatching {
+                    messageClient.sendMessage(node.id, TOGGLE_PATH, id.toByteArray(Charsets.UTF_8))
                         .addOnSuccessListener {
-                            delivered = true
-                            remaining -= 1
-                            if (remaining == 0) {
-                                commandState = "Команда отправлена"
-                                sending = false
-                            }
+                            if (pendingCommandId == id) commandState = "Команда доставлена. Ожидаю ответ приложения телефона…"
                         }
-                        .addOnFailureListener {
-                            remaining -= 1
-                            if (remaining == 0) {
-                                commandState = if (delivered) "Команда отправлена" else "Не удалось связаться с телефоном"
-                                sending = false
-                            }
-                        }
-                }
-            }
-            .addOnFailureListener {
-                commandState = "Не удалось найти подключённый телефон"
-                sending = false
-            }
+                        .addOnFailureListener { if (pendingCommandId == id) finishCommand("Не удалось доставить команду телефону.") }
+                }.onFailure { finishCommand("Не удалось отправить команду телефону.") }
+            }.addOnFailureListener { finishCommand("Не удалось найти подключённый телефон.") }
+        }.onFailure { finishCommand("Сервис связи с телефоном недоступен.") }
     }
 
     val statusLabel = when (connectionState) {
@@ -262,6 +299,7 @@ private fun WearVpnRemote() {
                     Text("NOVA VPN", fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(10.dp))
                     Text("Часы · $localStatusLabel", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                    watchMessage?.let { Text(it, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = ::toggleLocalVpn,
@@ -274,6 +312,7 @@ private fun WearVpnRemote() {
                         Text("Контрольный адрес не ответил. Это не означает, что VPN остановился; проверьте открытие сайтов.", fontSize = 11.sp, textAlign = TextAlign.Center)
                     }
                     Text("Связь с телефоном · $statusLabel", fontSize = 11.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    commandState?.let { Text(it, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Button(onClick = ::sendToggle, enabled = !sending, label = { Text(if (sending) "Отправка…" else buttonLabel + " на телефоне") }, modifier = Modifier.fillMaxWidth())
                     val explanation = when (connectionState) {
                         "permission_required" -> "Откройте NOVA на телефоне, нажмите «Подключить» и подтвердите запрос VPN. Затем повторите здесь."

@@ -1,5 +1,12 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.2 — 2026-10-14
+
+- Check the local profile before asking for VPN consent; missing/corrupt profile and unsupported permission activity are reported in the UI instead of throwing from the button handler.
+- Catch local start/stop and permission launch failures. Show feedback above the associated button, rather than below the screen edge.
+- Phone commands go to one node only, wait for an application acknowledgement and time out after 12 seconds. Pair with Android 0.2.20 for acknowledgement support.
+- Keep independent local tunnels and optional explicit profile transfer. Physical Watch Ultra / One UI 8 crash reproduction and traffic tests remain unverified without device logs.
+
 ## 0.3.1 — 2026-10-14
 
 - Ported phone network fixes: libbox 1.14.1, gVisor, MTU 1500, physical-network socket binding and local bootstrap DNS.

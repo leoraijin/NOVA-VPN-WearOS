@@ -1,4 +1,12 @@
-# Verification — 0.3.1 (2026-10-14)
+# Verification — 0.3.2 (2026-10-14)
+
+- Offline debug build succeeded; 20 unit tests passed. New tests exercise missing/corrupt profiles, unsupported consent UI, security/start/stop exceptions and unchanged valid profile delivery.
+- Command reply tests cover request/node matching, stale responses, invalid JSON, oversized payloads and unknown states. UI command timeout is bounded to 12 seconds and has no polling.
+- ARM64 APK signature verified; matches the prior phone/watch debug signer. Both ARM watch APKs built.
+- Physical watch crash logs were not available. This fixes identified unsafe handlers; it does not establish the exact exception seen on the user's watch or certify independent VPN support on Watch Ultra / One UI 8. Paired-device command delivery and real traffic still require hardware testing.
+- Update both watch 0.3.2 and phone 0.2.20 for application acknowledgements. Legacy phone clients can still toggle, but will time out without an acknowledgement.
+
+## Previous verification — 0.3.1
 
 - `Build-WearOS.ps1 testDebugUnitTest assembleDebug --offline --no-daemon`: successful.
 - 11 JUnit tests: 0 failures / 0 errors. Tests cover Reality defaults, explicit TLS preservation, TUN adaptation, bootstrap DNS, retained routes, neutral active state, authenticated loopback probe routing, response validation and cancellation.

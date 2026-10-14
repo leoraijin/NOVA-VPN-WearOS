@@ -2,7 +2,13 @@
 
 This is a standalone Wear OS VPN client paired with the separate NOVA Android phone client. The phone and watch can run independent VPN tunnels. A profile can optionally be copied from the phone; nothing is transferred until the user taps the send icon next to a server on the phone.
 
-Current client version: **0.3.1** (experimental debug builds).
+Current client version: **0.3.2** (experimental debug builds).
+
+## Connect buttons
+
+The upper button controls only the watch tunnel. It checks the local profile before asking for VPN permission and shows missing-profile/permission/start failures beside the button. If this watch OS cannot open its VPN consent activity, use the separate phone control instead; this is not proof of on-watch VPN compatibility.
+
+The lower button controls only the phone. Install Android 0.2.20 or later for command acknowledgements. One phone node receives the command; a 12-second timeout reports missing response rather than silent success. An acknowledgement means the phone handled the request, not that HTTPS already works. Android may require opening the phone app to grant VPN consent or allow starting it from the background. Profiles are still transferred only by an explicit send action in the phone server list.
 
 ## Network fixes and status
 
