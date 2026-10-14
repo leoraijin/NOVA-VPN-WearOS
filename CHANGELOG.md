@@ -1,5 +1,13 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.9 — 2026-10-14
+
+- Remove the separate watch VPN connect button and VPN service declaration that fail on the tested One UI 8 firmware.
+- Make the phone VPN remote the primary watch screen, with one user-facing control button; keep the Bluetooth gateway diagnostic debug-only.
+- Change the watch tile to a static shortcut for controlling the phone VPN; it no longer presents stale local tunnel/profile state.
+- Per-app watch routing is not claimed: it requires a working system VPN service on the watch.
+- Build and physical installation must be verified on the paired Watch Ultra before this build is considered installed.
+
 ## 0.3.8 — 2026-10-14 (experimental debug)
 
 - Add an on-demand **Check phone gateway** action. It selects the Bluetooth companion network and makes one TLS-validated HTTPS request to Cloudflare Trace; it stores no response body or public IP and adds no polling.

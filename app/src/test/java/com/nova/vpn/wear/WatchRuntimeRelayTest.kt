@@ -23,12 +23,10 @@ class WatchRuntimeRelayTest {
         WatchRuntime.reportFailure(null)
         assertNull(WatchRuntime.failure.value)
     }
-    @Test fun nativeServiceIsInPrivateProcessAndNotExported() {
+    @Test fun unsupportedLocalVpnServiceIsNotRegistered() {
         val file = File("src/main/AndroidManifest.xml").takeIf { it.exists() } ?: File("app/src/main/AndroidManifest.xml")
         val nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file).getElementsByTagName("service")
-        val vpn = (0 until nodes.length).map { nodes.item(it) }.first { it.attributes.getNamedItem("android:name").nodeValue == ".WatchVpnService" }
-        assertEquals(":vpn", vpn.attributes.getNamedItem("android:process").nodeValue)
-        assertEquals("false", vpn.attributes.getNamedItem("android:exported").nodeValue)
-        assertEquals("android.permission.BIND_VPN_SERVICE", vpn.attributes.getNamedItem("android:permission").nodeValue)
+        val names = (0 until nodes.length).mapNotNull { nodes.item(it).attributes.getNamedItem("android:name")?.nodeValue }
+        assertFalse(names.contains(".WatchVpnService"))
     }
 }

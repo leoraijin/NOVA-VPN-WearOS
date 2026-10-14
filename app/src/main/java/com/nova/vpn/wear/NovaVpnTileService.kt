@@ -20,8 +20,7 @@ import com.google.common.util.concurrent.ListenableFuture
 /** Local-only tile: event-driven snapshots and a foreground entry to watch VPN controls. */
 class NovaVpnTileService : TileService() {
     override fun onTileRequest(requestParams: RequestBuilders.TileRequest): ListenableFuture<TileBuilders.Tile> {
-        val hasProfile = runCatching { !WearProfileVault(this).load().isNullOrBlank() }.getOrDefault(false)
-        val model = NovaTilePresentation.model(NovaTileState.read(this), hasProfile, NovaTileState.foregroundService(this))
+        val model = NovaTilePresentation.model()
         return CallbackToFutureAdapter.getFuture { it.set(NovaTileLayout.build(model, requestParams.deviceConfiguration.screenWidthDp, packageName)); "NOVA tile" }
     }
     override fun onTileResourcesRequest(requestParams: RequestBuilders.ResourcesRequest): ListenableFuture<ResourceBuilders.Resources> {
@@ -55,15 +54,15 @@ internal object NovaTileLayout {
         val button = LayoutElementBuilders.Box.Builder().setWidth(dp(width)).setHeight(dp(44f))
             .setModifiers(ModifiersBuilders.Modifiers.Builder().setBackground(background(LAVENDER, 22f))
                 .setClickable(ModifiersBuilders.Clickable.Builder().setId("nova-open").setOnClick(launch).build())
-                .setSemantics(semantics("Открыть NOVA для управления VPN часов")).build())
+                .setSemantics(semantics("Открыть NOVA для управления VPN телефона")).build())
             .addContent(LayoutElementBuilders.Row.Builder().setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
                 .addContent(image("power", 22f, 22f)).addContent(gap(8f, 1f))
-                .addContent(text("Открыть VPN", 13f, INK, true)).build()).build()
+                .addContent(text("Управлять телефоном", 13f, INK, true)).build()).build()
         val content = LayoutElementBuilders.Column.Builder()
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
             .addContent(header).addContent(gap(1f, 10f)).addContent(status)
             .addContent(gap(1f, 8f)).addContent(button).addContent(gap(1f, 6f))
-            .addContent(text("На этих часах", 10f, MUTED)).build()
+            .addContent(text("VPN работает на телефоне", 10f, MUTED)).build()
         val root = LayoutElementBuilders.Box.Builder().setWidth(expand()).setHeight(expand())
             .setModifiers(ModifiersBuilders.Modifiers.Builder().setBackground(background(BLACK, 0f)).build())
             .addContent(content).build()

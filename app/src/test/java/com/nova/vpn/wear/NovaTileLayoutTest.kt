@@ -7,8 +7,8 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NovaTileLayoutTest {
-    private fun content(screenWidth: Int, state: String = "watch_disconnected") : LayoutElementBuilders.Column {
-        val tile = NovaTileLayout.build(NovaTilePresentation.model(state, true, true), screenWidth, "com.nova.vpn.android")
+    private fun content(screenWidth: Int) : LayoutElementBuilders.Column {
+        val tile = NovaTileLayout.build(NovaTilePresentation.model(), screenWidth, "com.nova.vpn.android")
         assertEquals(NovaTileLayout.VERSION, tile.resourcesVersion)
         assertEquals(0L, tile.freshnessIntervalMillis)
         val root = tile.tileTimeline!!.timelineEntries.single().layout!!.root as LayoutElementBuilders.Box
@@ -25,16 +25,16 @@ class NovaTileLayoutTest {
             assertEquals(44f, (button.height as DimensionBuilders.DpProp).value)
         }
     }
-    @Test fun actionOpensLocalWatchControls() {
+    @Test fun actionOpensPhoneVpnControls() {
         val button = content(192).contents[4] as LayoutElementBuilders.Box
         val launch = button.modifiers!!.clickable!!.onClick as ActionBuilders.LaunchAction
         assertEquals("com.nova.vpn.android", launch.androidActivity!!.packageName)
         assertEquals("com.nova.vpn.wear.MainActivity", launch.androidActivity!!.className)
-        assertTrue(button.modifiers!!.semantics!!.contentDescription!!.value.contains("часов"))
+        assertTrue(button.modifiers!!.semantics!!.contentDescription!!.value.contains("телефона"))
     }
-    @Test fun statusTextUsesLocalTunnelModel() {
-        val status = content(192, "watch_verified").contents[2] as LayoutElementBuilders.Box
+    @Test fun statusTextDoesNotClaimWatchTunnelState() {
+        val status = content(192).contents[2] as LayoutElementBuilders.Box
         val texts = (status.contents.single() as LayoutElementBuilders.Column).contents.map { (it as LayoutElementBuilders.Text).text!!.value }
-        assertEquals(listOf("VPN включён", "HTTPS проверен"), texts)
+        assertEquals(listOf("VPN на телефоне", "Нажмите, чтобы управлять"), texts)
     }
 }

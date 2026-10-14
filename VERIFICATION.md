@@ -1,4 +1,12 @@
-# Verification — 0.3.8 experimental (2026-10-14)
+# Verification — 0.3.9 experimental (2026-10-14)
+
+`Build-WearOS.ps1 testDebugUnitTest assembleDebug`: successful; 43 unit tests passed, zero failures. Both 32-bit ARMv7 and ARM64 APKs were built. The unsupported local watch VPN service was removed from the manifest; tests now assert that the tile is a phone-VPN shortcut and that no local VPN service is registered.
+
+Installed `app-armeabi-v7a-debug.apk` on Samsung Watch Ultra SM-L705F through ADB. Device package inspection confirms versionCode 13, versionName 0.3.9 and ABI `armeabi-v7a`. MainActivity resolves on device; recent log output showed no fatal exception. The phone VPN was not stopped or changed.
+
+Per-app routing on the watch remains unavailable on the tested firmware: it needs a functioning Android VPN service, which was absent on this One UI 8 device. The companion network test is app-scoped and does not reroute other watch apps. No Wi-Fi/LTE setting was changed.
+
+## Previous verification — 0.3.8 experimental (2026-10-14)
 
 Debug ARMv7/ARM64 builds and 45 unit tests passed, with zero failures or errors. The gateway test accepts only an HTTP 200 Cloudflare trace containing an address field. It selects a Bluetooth companion `Network`, validates TLS normally, uses bounded timeouts, and stores or logs no response body or public IP.
 
