@@ -1,5 +1,16 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.6 — 2026-10-14 (experimental debug)
+
+- Opening watch controls no longer auto-creates an idle VPN process. Explicit Connect still starts and binds the local service; reopening controls binds an already running service.
+- Local profile decryption moves off the UI thread. Remove the redundant Data Layer listener for this watch's own status; profile reception updates the UI through its local revision flow.
+- Suppress unchanged status publications and tile refreshes; preserve explicit profile refresh, command acknowledgements and retry after failed status delivery.
+- Routine verification status uses non-urgent Data Layer batching; actual connection transitions and separate command acknowledgements retain immediate delivery.
+- Coalesce identical default-interface updates from capability events. Network handover, link/interface change, loss and restoration remain delivered; no extra timer or polling.
+- Idle service destruction no longer broadcasts a false disconnect; startup failure remains visible. Independent VPN and its one-shot HTTPS check are unchanged.
+- Actual battery savings and watch VPN operation require physical Watch Ultra testing. This is not a confirmed fix for the previous native VPN crash. Owner: ARMv7 / 32-bit.
+- Updates: GitHub Releases in this Wear OS repository.
+
 ## 0.3.5 — 2026-10-14 (experimental debug)
 
 - Added a NOVA VPN tile to the Wear OS carousel / Galaxy Wearable Cards picker, with the purple shield, local tunnel status, profile readiness and an Open VPN action.

@@ -20,11 +20,13 @@ internal class WatchServiceConnection(private val context: Context) : ServiceCon
         }
         true
     })
-    fun bind() {
+    fun bind(create: Boolean = false) {
         if (bound) return
         runCatching {
-            bound = context.bindService(Intent(context, WatchVpnService::class.java).setAction(ACTION), this, Context.BIND_AUTO_CREATE)
-            if (!bound) WatchRuntime.reportFailure("Не удалось связаться со службой VPN часов.")
+            // Opening controls must not create an idle native-VPN process.
+            bound = context.bindService(Intent(context, WatchVpnService::class.java).setAction(ACTION), this, if (create) Context.BIND_AUTO_CREATE else 0)
+            if (!bound && create) WatchRuntime.reportFailure("Не удалось связаться со службой VPN часов.")
+            if (!bound && !create && WatchRuntime.isActive(WatchRuntime.state.value)) failed()
         }.onFailure { WatchRuntime.reportFailure("Система не разрешила запуск службы VPN часов.") }
     }
     fun unbind() { if (bound) { bound = false; runCatching { context.unbindService(this) } } }

@@ -12,6 +12,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.LinkProperties
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -53,6 +54,7 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private val connectivity by lazy { getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager }
     private val monitors = ConcurrentHashMap<InterfaceUpdateListener, ConnectivityManager.NetworkCallback>()
     private val availableUnderlays = ConcurrentHashMap<Network, NetworkCapabilities>()
+    private val interfaceUpdates = ConcurrentHashMap<InterfaceUpdateListener, InterfaceUpdateGate<DefaultInterfaceSnapshot>>()
     private val queue = Executors.newSingleThreadExecutor { Thread(it, "nova-wear-vpn").apply { isDaemon = true } }
     private val probeQueue = Executors.newSingleThreadExecutor { Thread(it, "nova-wear-probe").apply { isDaemon = true } }
     @Volatile private var trafficProbe: AndroidTrafficProbe? = null
@@ -145,6 +147,7 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
 
     override fun onRevoke() { stopTunnel(startIdLatest); super.onRevoke() }
     override fun onDestroy() {
+        val reportDisconnected = startIdLatest > 0 && WatchRuntime.isActive(WatchRuntime.state.value)
         WatchRuntime.relay = null
         uiClients.clear()
         startIdLatest = -1
@@ -152,7 +155,8 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         probeQueue.shutdownNow()
         monitors.values.forEach { runCatching { connectivity.unregisterNetworkCallback(it) } }
         monitors.clear()
-        runCatching { queue.execute { closeEngine(); WatchStatusSync.publish(this, "watch_disconnected") }; queue.shutdown() }
+        interfaceUpdates.clear()
+        runCatching { queue.execute { closeEngine(); if (reportDisconnected) WatchStatusSync.publish(this, "watch_disconnected") }; queue.shutdown() }
         super.onDestroy()
     }
 
@@ -256,6 +260,7 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     }
 
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        interfaceUpdates[listener] = InterfaceUpdateGate()
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 connectivity.getNetworkCapabilities(network)?.let { availableUnderlays[network] = it }
@@ -267,6 +272,9 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
             }
             override fun onLost(network: Network) {
                 availableUnderlays.remove(network)
+                publishDefaultInterface(listener, selectUnderlay())
+            }
+            override fun onLinkPropertiesChanged(network: Network, properties: LinkProperties) {
                 publishDefaultInterface(listener, selectUnderlay())
             }
         }
@@ -298,12 +306,16 @@ class WatchVpnService : VpnService(), PlatformInterface, CommandServerHandler {
     private fun publishDefaultInterface(listener: InterfaceUpdateListener, network: Network?) {
         val name = network?.let { connectivity.getLinkProperties(it)?.interfaceName }.orEmpty()
         val index = runCatching { JNetworkInterface.getByName(name)?.index ?: 0 }.getOrDefault(0)
-        runCatching { setUnderlyingNetworks(network?.let { arrayOf(it) }) }
-        if (name.isNotBlank() && index > 0) listener.updateDefaultInterface(name, index, false, false)
-        else listener.updateDefaultInterface("", 0, false, false)
+        val snapshot = DefaultInterfaceSnapshot(network?.networkHandle, name, index)
+        interfaceUpdates[listener]?.deliver(snapshot) {
+            runCatching { setUnderlyingNetworks(network?.let { arrayOf(it) }) }
+            if (name.isNotBlank() && index > 0) listener.updateDefaultInterface(name, index, false, false)
+            else listener.updateDefaultInterface("", 0, false, false)
+        }
     }
 
     override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener) {
+        interfaceUpdates.remove(listener)
         monitors.remove(listener)?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }
         if (monitors.isEmpty()) {
             availableUnderlays.clear()

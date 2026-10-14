@@ -12,6 +12,8 @@ internal object NovaTileState {
     private fun file(context: Context) = AtomicFile(File(context.filesDir, "watch-tile-state.txt"))
     fun read(context: Context): String = runCatching { file(context).readFully().toString(Charsets.UTF_8).takeIf { it in states } }.getOrNull() ?: "watch_disconnected"
     fun changed(context: Context, state: String) {
+        // Profile reception still refreshes readiness even when tunnel state is unchanged.
+        if (state in states && read(context) == state) return
         if (state in states) runCatching {
             if (read(context) != state) {
                 val target = file(context)

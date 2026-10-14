@@ -50,6 +50,8 @@ import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.MessageClient
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -58,7 +60,6 @@ import java.util.UUID
 private const val STATUS_PATH = "/nova/status"
 private const val TOGGLE_PATH = "/nova/toggle"
 private const val STATE_KEY = "state"
-private const val WATCH_STATUS_PATH = "/nova/watch-status"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,13 +93,13 @@ private fun WearVpnRemote() {
         if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) vpnServiceConnection.bind()
         onDispose { vpnServiceConnection.unbind(); lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    var hasLocalProfile by remember { mutableStateOf(runCatching { WearProfileVault(context).load() != null }.getOrDefault(false)) }
-    val watchStatusUri = remember { Uri.parse("wear://*$WATCH_STATUS_PATH") }
+    var hasLocalProfile by remember { mutableStateOf(false) }
+    var localActionBusy by remember { mutableStateOf(false) }
     var pendingLocalConnect by remember { mutableStateOf(false) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
     val profileRevision by WatchRuntime.profileRevision.collectAsStateWithLifecycle()
     LaunchedEffect(profileRevision) {
-        hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false)
+        hasLocalProfile = withContext(Dispatchers.IO) { runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false) }
         if (hasLocalProfile) watchMessage = null
     }
     fun launchLocalVpn(config: String) {
@@ -106,10 +107,17 @@ private fun WearVpnRemote() {
             val intent = Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_START)
                 .putExtra(WatchVpnService.EXTRA_CONFIG, config)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent) else context.startService(intent)
-            vpnServiceConnection.bind()
+            vpnServiceConnection.bind(create = true)
     }
     fun startLocalVpn() {
-        watchMessage = WatchConnectAction.perform(false, { WearProfileVault(context).load() }, {}, ::launchLocalVpn)
+        if (localActionBusy) return
+        localActionBusy = true
+        scope.launch {
+            try {
+                val config = withContext(Dispatchers.IO) { runCatching { WearProfileVault(context).load() } }
+                watchMessage = WatchConnectAction.perform(false, { config.getOrThrow() }, {}, ::launchLocalVpn)
+            } finally { localActionBusy = false }
+        }
     }
     val vpnConsent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (pendingLocalConnect && result.resultCode == Activity.RESULT_OK) startLocalVpn()
@@ -117,8 +125,14 @@ private fun WearVpnRemote() {
         pendingLocalConnect = false
     }
     fun toggleLocalVpn() {
-        watchMessage = WatchConnectAction.perform(WatchRuntime.isActive(watchState),
-            { WearProfileVault(context).load().also { hasLocalProfile = !it.isNullOrBlank() } },
+        if (localActionBusy || pendingLocalConnect) return
+        localActionBusy = true
+        scope.launch {
+          try {
+            val active = WatchRuntime.isActive(WatchRuntime.state.value)
+            val config = if (active) Result.success<String?>(null) else withContext(Dispatchers.IO) { runCatching { WearProfileVault(context).load() } }
+            watchMessage = WatchConnectAction.perform(active,
+            { config.getOrThrow().also { hasLocalProfile = !it.isNullOrBlank() } },
             { context.startService(Intent(context, WatchVpnService::class.java).setAction(WatchVpnService.ACTION_STOP)) },
             { config ->
                 val consent = VpnService.prepare(context)
@@ -127,6 +141,8 @@ private fun WearVpnRemote() {
                     pendingLocalConnect = true
                 }
             })
+          } finally { localActionBusy = false }
+        }
     }
     val statusUri = remember { Uri.parse("wear://*$STATUS_PATH") }
 
@@ -182,39 +198,6 @@ private fun WearVpnRemote() {
         }
     }
 
-    DisposableEffect(dataClient, watchStatusUri, lifecycleOwner) {
-        val listener = DataClient.OnDataChangedListener { events ->
-            events.forEach { event ->
-                if (event.type == DataEvent.TYPE_CHANGED && event.dataItem.uri.path == WATCH_STATUS_PATH) {
-                    runCatching { DataMapItem.fromDataItem(event.dataItem).dataMap.getString(STATE_KEY) }
-                        .getOrNull()?.let { state ->
-                            if (state == "profile_ready") { hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false); if (hasLocalProfile) watchMessage = null }
-                            if (state == "watch_connected" || state == "watch_disconnected") watchMessage = null
-                        }
-                }
-            }
-        }
-        var listening = false
-        fun startListening() {
-            if (listening) return
-            listening = true
-            dataClient.addListener(listener, watchStatusUri, DataClient.FILTER_PREFIX)
-            dataClient.getDataItems(watchStatusUri, DataClient.FILTER_PREFIX).addOnSuccessListener { items ->
-                try { if (listening) items.forEach { item ->
-                    runCatching { DataMapItem.fromDataItem(item).dataMap.getString(STATE_KEY) }.getOrNull()?.let { state ->
-                        if (state == "profile_ready") { hasLocalProfile = runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false); if (hasLocalProfile) watchMessage = null }
-                    }
-                } } finally { items.release() }
-            }
-        }
-        fun stopListening() { if (listening) { listening = false; dataClient.removeListener(listener) } }
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) { Lifecycle.Event.ON_START -> startListening(); Lifecycle.Event.ON_STOP -> stopListening(); else -> Unit }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startListening()
-        onDispose { stopListening(); lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
 
     fun finishCommand(text: String) {
         commandState = text
@@ -323,7 +306,7 @@ private fun WearVpnRemote() {
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = ::toggleLocalVpn,
-                        enabled = watchState != "watch_connecting",
+                        enabled = !localActionBusy && !pendingLocalConnect && watchState != "watch_connecting",
                         label = { Text(if (WatchRuntime.isActive(watchState)) "Отключить VPN часов" else "Подключить VPN часов") },
                         modifier = Modifier.fillMaxWidth()
                     )

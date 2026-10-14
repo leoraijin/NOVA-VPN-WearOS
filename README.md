@@ -2,7 +2,7 @@
 
 This is a standalone Wear OS VPN client paired with the separate NOVA Android phone client. The phone and watch can run independent VPN tunnels. A profile can optionally be copied from the phone by tapping **Servers → Передать на часы** below the chosen profile.
 
-Current version: **0.3.5** (experimental debug builds). Pair with **Android 0.2.21** for acknowledged profile transfer. The reported watch VPN crash is **not confirmed fixed**.
+Current version: **0.3.6** (experimental debug builds). Pair with **Android 0.2.21** for acknowledged profile transfer. The reported watch VPN crash is **not confirmed fixed**.
 
 The phone discovers the watch application's capability and sends one explicit transfer. The watch acknowledges only after encrypted storage and read-back succeed. The phone matches the response to the request and node; missing acknowledgement produces a timeout rather than success. The watch UI reloads the local profile and clears the stale missing-profile message. Transfer does not start either VPN.
 
