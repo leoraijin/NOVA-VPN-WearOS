@@ -3,7 +3,7 @@
 NOVA Wear OS source: GPL-3.0-only (see LICENSE). Dependencies retain their own licenses.
 
 - sing-box / libbox 1.14.1: GPL-3.0; https://github.com/SagerNet/sing-box and https://github.com/singbox-android/libbox. The library bundles additional components with upstream notices; consult its corresponding source and dependency license files.
-- AndroidX / Wear Compose: Apache-2.0; https://android.googlesource.com/platform/frameworks/support/
+- AndroidX / Wear Compose, Wear Tiles 1.6.2, ProtoLayout 1.4.2, Concurrent Futures 1.2.0: Apache-2.0; https://android.googlesource.com/platform/frameworks/support/
 - Kotlin / kotlinx.coroutines: Apache-2.0; https://github.com/JetBrains/kotlin and https://github.com/Kotlin/kotlinx.coroutines
 - Google Play services Wearable: proprietary Google SDK terms; https://developers.google.com/android/guides/overview . Not relicensed by this project; required only for optional paired-phone Data Layer integration.
 - JUnit (tests only): EPL-1.0; https://github.com/junit-team/junit4

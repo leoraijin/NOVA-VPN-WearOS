@@ -1,4 +1,12 @@
-# Verification — 0.3.4 experimental (2026-10-14)
+# Verification — 0.3.5 experimental (2026-10-14)
+
+Debug build and 35 unit tests passed. New tile tests cover disconnected/connecting/error/verified/unconfirmed states, no false active state after service death, tile registration and platform bind permission, local activity launch, 160/192/240/280 dp layout bounds, resource version and zero periodic refresh interval. The static picker preview was rendered and visually inspected; it is not a physical-device screenshot.
+
+The ARMv7 APK retains the same package ID / signing certificate and receiver capability as 0.3.4. The tile provider and preview are packaged in the manifest/resources. The tile never starts a tunnel, phone command or network probe on its own. Its snapshots use a fixed private status record plus this app's foreground-service presence.
+
+Physical Watch Ultra / One UI 8 tile discovery, renderer/font scaling, refresh scheduling and service visibility are not tested. No device is connected to ADB. The existing VPN crash and real network traffic remain unverified on hardware.
+
+## Previous verification — 0.3.4 experimental
 
 Offline debug build and 28 unit tests passed. Profile protocol tests cover exact UTF-8/escaped JSON round-trip, invalid/oversized profiles, request-matched acknowledgements and unknown/stale replies. Packaged ARMv7 resources include the advertised profile capability. The phone and ARMv7 watch APKs have the same package ID and signing certificate as their previous builds.
 

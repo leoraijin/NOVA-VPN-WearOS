@@ -2,13 +2,19 @@
 
 This is a standalone Wear OS VPN client paired with the separate NOVA Android phone client. The phone and watch can run independent VPN tunnels. A profile can optionally be copied from the phone by tapping **Servers → Передать на часы** below the chosen profile.
 
-Current version: **0.3.4** (experimental debug builds). Pair with **Android 0.2.21** for acknowledged profile transfer. The reported watch VPN crash is **not confirmed fixed**.
+Current version: **0.3.5** (experimental debug builds). Pair with **Android 0.2.21** for acknowledged profile transfer. The reported watch VPN crash is **not confirmed fixed**.
 
 The phone discovers the watch application's capability and sends one explicit transfer. The watch acknowledges only after encrypted storage and read-back succeed. The phone matches the response to the request and node; missing acknowledgement produces a timeout rather than success. The watch UI reloads the local profile and clears the stale missing-profile message. Transfer does not start either VPN.
 
 The native VPN service runs in its own private process, with Messenger IPC for local status. If the process exits while the screen is bound, the screen reports a fixed phase and recent Android exit category. This protects against a shared-process core crash, but does not prove native VPN compatibility on the affected watch. ARMv7 is the required variant for the owner's device where ARM64 does not run. No hardware watch is currently connected; please report the phase/reason shown if connection fails.
 
-## Connect buttons
+## NOVA VPN tile / Galaxy Wearable Cards
+
+After updating and opening NOVA on the watch, add **NOVA VPN** using **Galaxy Wearable → Карточки → Добавить карточки** or the watch's own tile picker. The purple card shows the local watch tunnel and profile status. **Открыть VPN** opens NOVA's local watch controls, where VPN consent and connect/disconnect are handled.
+
+Tile updates are event-driven (local state/profile changes and tile entry), with no periodic network check or timer. The tile stores no hostname, profile, key or phone status. It checks this app's foreground VPN service before showing a saved active state. HTTPS status reflects the existing connection-time check, not continuous monitoring. The picker preview is a static design asset, not a device screenshot.
+
+### Connect buttons
 
 The upper button controls only the watch tunnel. It checks the local profile before asking for VPN permission and shows missing-profile/permission/start failures beside the button. If this watch OS cannot open its VPN consent activity, use the separate phone control instead; this is not proof of on-watch VPN compatibility.
 

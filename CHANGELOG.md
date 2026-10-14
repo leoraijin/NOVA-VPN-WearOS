@@ -1,5 +1,14 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.5 — 2026-10-14 (experimental debug)
+
+- Added a NOVA VPN tile to the Wear OS carousel / Galaxy Wearable Cards picker, with the purple shield, local tunnel status, profile readiness and an Open VPN action.
+- The action opens local watch controls. It does not toggle the phone or start VPN from a background tile callback.
+- Refresh only on local state/profile changes and tile entry. No timer, periodic HTTPS checks, profile transfer or polling is added.
+- Persist only a fixed local status string; check that this app's own VPN service is foreground before displaying an active tunnel. A stale verified record after process exit is not shown as active.
+- Included a static tile-picker preview. Debug build/protocol/layout checks do not replace physical Watch Ultra testing.
+- Updates: GitHub Releases in this Wear OS repository; use ARMv7 on the owner's watch.
+
 ## 0.3.4 — 2026-10-14 (experimental debug)
 
 - Advertise the profile receiver capability so Android 0.2.21 discovers the NOVA app rather than blindly sending to every connected node.
