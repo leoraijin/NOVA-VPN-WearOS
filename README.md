@@ -2,11 +2,11 @@
 
 This is a standalone Wear OS VPN client paired with the separate NOVA Android phone client. The phone and watch can run independent VPN tunnels. A profile can optionally be copied from the phone by tapping **Servers → Передать на часы** below the chosen profile.
 
-Current version: **0.3.7** (experimental debug builds). Pair with **Android 0.2.21+** for acknowledged profile transfer. Launch feedback now distinguishes profile loading, VPN permission and service start failures; the installer uses a square raster NOVA icon with an adaptive round launcher variant. The reported Watch Ultra VPN failure is **not confirmed fixed**.
+Current version: **0.3.8** (experimental debug builds). Pair with **Android 0.2.21+** for acknowledged profile transfer. The app includes an on-demand HTTPS test over the Bluetooth phone-companion network. It does not change the watch's default route or certify that other apps use the phone VPN.
 
 The phone discovers the watch application's capability and sends one explicit transfer. The watch acknowledges only after encrypted storage and read-back succeed. The phone matches the response to the request and node; missing acknowledgement produces a timeout rather than success. The watch UI reloads the local profile and clears the stale missing-profile message. Transfer does not start either VPN.
 
-The native VPN service runs in its own private process, with Messenger IPC for local status. If the process exits while the screen is bound, the screen reports a fixed phase and recent Android exit category. This protects against a shared-process core crash, but does not prove native VPN compatibility on the affected watch. ARMv7 is the required variant for the owner's device where ARM64 does not run. No hardware watch is currently connected; please report the phase/reason shown if connection fails.
+The native VPN service runs in its own private process, with Messenger IPC for local status. If the process exits while the screen is bound, the screen reports a fixed phase and recent Android exit category. ARMv7 is the required variant for the owner's device where ARM64 does not run. On the tested Watch Ultra / One UI 8 firmware, Android's standard VPN management service is absent, so the independent watch tunnel cannot start.
 
 ## NOVA VPN tile / Galaxy Wearable Cards
 
@@ -28,7 +28,8 @@ The lower button controls only the phone. Install Android 0.2.20 or later for co
 - One bounded, authenticated-loopback HTTPS check runs per connection through the selected concrete proxy. There is no periodic polling or speed test.
 - A failed control request means **unconfirmed**, not a dead VPN. Selectors/direct fallback are never certified as proxy traffic. Fatal start errors remain errors.
 - Watch status is local and works without the phone; pairing and profile transfer remain optional and explicit.
-- Physical Watch Ultra 2025 / One UI 8 installation and real traffic have not yet been verified for this build. A successful build or unit test is not a hardware VPN test.
+- **Check phone gateway** requests the Bluetooth companion network for this app only and performs one HTTPS request. It does not modify system network settings, disable Wi-Fi/LTE or guarantee that other watch applications use the VPN.
+- Physical test: on Watch Ultra / One UI 8 paired with S24, HTTPS over the Bluetooth companion network succeeded and returned the same external address as phone Chrome while NOVA VPN was active. The watch's active default network remained Wi-Fi. This confirms the selected Bluetooth path, not system-wide watch protection.
 
 ## License
 

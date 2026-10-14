@@ -1,5 +1,13 @@
 # NOVA VPN Wear OS — changes
 
+## 0.3.8 — 2026-10-14 (experimental debug)
+
+- Add an on-demand **Check phone gateway** action. It selects the Bluetooth companion network and makes one TLS-validated HTTPS request to Cloudflare Trace; it stores no response body or public IP and adds no polling.
+- The result describes only this app's request over the selected Bluetooth network. It does not claim that the watch's Wi-Fi/LTE default route or every other app is protected by the phone VPN.
+- Physical test on Watch Ultra / One UI 8 paired with S24: the Bluetooth companion HTTPS request succeeded and its external address matched Chrome on the phone while NOVA VPN was active. The watch's system default remained Wi-Fi, so system-wide routing is not established.
+- The standard watch VPN management service is absent on this firmware; the independent watch tunnel remains unsupported here. The gateway check is diagnostic, not a whole-device VPN fix.
+- Updates: GitHub Releases in this Wear OS repository; use ARMv7 on the owner's watch.
+
 ## 0.3.7 — 2026-10-14 (experimental debug)
 
 - Separate failures in profile loading, system VPN permission, permission UI, service start and stop. A NullPointerException in the system permission request no longer produces the ambiguous generic action message or suggests the saved profile is missing.

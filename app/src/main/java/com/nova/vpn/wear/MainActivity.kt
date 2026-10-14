@@ -1,6 +1,7 @@
 package com.nova.vpn.wear
 
 import android.net.Uri
+import android.net.ConnectivityManager
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +67,23 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { WearVpnRemote() }
+        if (BuildConfig.DEBUG && intent?.action == ACTION_DEBUG_COMPANION_PROBE) {
+            lifecycleScope.launch {
+                try {
+                    val connectivity = getSystemService(ConnectivityManager::class.java)
+                    val outcome = CompanionGatewayProbe.check(connectivity)
+                    android.util.Log.i("NOVA-GATEWAY-CHECK", outcome.name)
+                } catch (_: Exception) {
+                    android.util.Log.i("NOVA-GATEWAY-CHECK", "HTTPS_FAILED")
+                } finally {
+                    finish()
+                }
+            }
+        }
+    }
+
+    companion object {
+        const val ACTION_DEBUG_COMPANION_PROBE = "com.nova.vpn.android.DEBUG_COMPANION_PROBE"
     }
 }
 
@@ -97,6 +116,9 @@ private fun WearVpnRemote() {
     var localActionBusy by remember { mutableStateOf(false) }
     var pendingLocalConnect by remember { mutableStateOf(false) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
+    var companionProbeMessage by remember { mutableStateOf<String?>(null) }
+    var companionProbeBusy by remember { mutableStateOf(false) }
+    val connectivity = remember(context) { context.getSystemService(ConnectivityManager::class.java) }
     val profileRevision by WatchRuntime.profileRevision.collectAsStateWithLifecycle()
     LaunchedEffect(profileRevision) {
         hasLocalProfile = withContext(Dispatchers.IO) { runCatching { !WearProfileVault(context).load().isNullOrBlank() }.getOrDefault(false) }
@@ -321,6 +343,32 @@ private fun WearVpnRemote() {
                     Text("Связь с телефоном · $statusLabel", fontSize = 11.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     commandState?.let { Text(it, fontSize = 12.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Button(onClick = ::sendToggle, enabled = !sending, label = { Text(if (sending) "Отправка…" else buttonLabel + " на телефоне") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(6.dp))
+                    Button(
+                        onClick = {
+                            if (!companionProbeBusy) scope.launch {
+                                companionProbeBusy = true
+                                companionProbeMessage = "Проверяю Bluetooth-шлюз…"
+                                try {
+                                    val outcome = CompanionGatewayProbe.check(connectivity)
+                                    if (BuildConfig.DEBUG) android.util.Log.i("NOVA-GATEWAY-CHECK", outcome.name)
+                                    companionProbeMessage = if (outcome == CompanionGatewayProbe.Outcome.HTTPS_OK) {
+                                        "HTTPS через Bluetooth-шлюз телефона прошёл. На телефоне VPN: $statusLabel."
+                                    } else "Bluetooth-шлюз телефона не ответил на HTTPS."
+                                } catch (_: Exception) {
+                                    companionProbeMessage = "Bluetooth-шлюз телефона не ответил на HTTPS."
+                                } finally {
+                                    companionProbeBusy = false
+                                }
+                            }
+                        },
+                        enabled = !companionProbeBusy,
+                        label = { Text(if (companionProbeBusy) "Проверка…" else "Проверить шлюз телефона") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    companionProbeMessage?.let {
+                        Text(it, fontSize = 11.sp, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     val explanation = when (connectionState) {
                         "permission_required" -> "Откройте NOVA на телефоне, нажмите «Подключить» и подтвердите запрос VPN. Затем повторите здесь."
                         "profile_required" -> "Сначала импортируйте VPN-профиль в приложении на телефоне."

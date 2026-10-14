@@ -1,10 +1,13 @@
-# Verification — 0.3.5 experimental (2026-10-14)
+# Verification — 0.3.8 experimental (2026-10-14)
 
-Debug build and 35 unit tests passed. New tile tests cover disconnected/connecting/error/verified/unconfirmed states, no false active state after service death, tile registration and platform bind permission, local activity launch, 160/192/240/280 dp layout bounds, resource version and zero periodic refresh interval. The static picker preview was rendered and visually inspected; it is not a physical-device screenshot.
+Debug ARMv7/ARM64 builds and 45 unit tests passed, with zero failures or errors. The gateway test accepts only an HTTP 200 Cloudflare trace containing an address field. It selects a Bluetooth companion `Network`, validates TLS normally, uses bounded timeouts, and stores or logs no response body or public IP.
 
-The ARMv7 APK retains the same package ID / signing certificate and receiver capability as 0.3.4. The tile provider and preview are packaged in the manifest/resources. The tile never starts a tunnel, phone command or network probe on its own. Its snapshots use a fixed private status record plus this app's foreground-service presence.
+Physical test on Samsung Watch Ultra SM-L705F / Android 16 / One UI 8 paired with Samsung S24: Bluetooth companion network connected. HTTPS from the watch over the selected Bluetooth network succeeded. The returned public address was compared locally by SHA-256 with Chrome's trace on the phone while NOVA VPN was active; it matched and the raw address was not retained. The phone VPN remained active. The watch's system default remained Wi-Fi throughout the test.
 
-Physical Watch Ultra / One UI 8 tile discovery, renderer/font scaling, refresh scheduling and service visibility are not tested. No device is connected to ADB. The existing VPN crash and real network traffic remain unverified on hardware.
+This proves an app-selected Bluetooth path through the phone VPN for this request. It does not prove other watch apps use that network. The tested firmware has no standard `vpn_management` service, so an independent system VPN tunnel on this watch remains unavailable through the ordinary app API. No Wi-Fi/LTE setting was changed and no PC VPN was interrupted. Debug builds are experimental, not production-signed.
+
+## Previous verification — 0.3.7 experimental
+Debug build and 44 unit tests passed with zero failures/errors. The launcher assets, permission stage diagnostics, source-level VPN permission checks and profile-preserving failure path were verified. Physical Watch Ultra testing had not yet taken place for 0.3.7.
 
 ## Previous verification — 0.3.4 experimental
 
